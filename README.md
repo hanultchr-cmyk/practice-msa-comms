@@ -1,20 +1,12 @@
 ### MSA Communications Samples
 * user-esrvice와 order-service 간의 통신에 대한 샘플 코드
 * user-service에서 사용자 ID에 대한 상세 정보 조회 시 order-service로부터 사용자가 주문한 주문 목록을 가져오기
-> * restful API 사용
-  >  * branch 명: main
-> * gRPC API 사용
-  >  * branch 명: grpc
-  >  * OrderGrpcService 오류 발생 시
-  >    * mvn clean compile
-  >    * target/generated-sources 폴더에 OrderServiceGrpc 클래스가 생성되어 있는지 확인
-  >      * OrderServiceGrpc.java, OrderRequest.java, OrderResponse.java, Order.java
-  >    * IDE 등에서 소스 코드 인식 (IntellIJ IDEA 예시)
-  >      *  프로젝트에서 우측 클릭 -> Maven 탭 -> Reload Project
-  >      *  File -> Invalidate Caches -> Restart
-  >      * IntelliJ에서 target/generated-sources/protobuf 폴더를 우클릭 후, Mark Directory as → Generated Sources Root 설정
-> * graphql API 사용
-  >  * branch 명: graphql
+    * restful API 사용
+        + branch 명: restapi
+    * gRPC API 사용
+        + branch 명: grpc
+    * graphql API 사용
+        + branch 명: graphql
 
 ### API Gateway & Service Discovery / Registry
 * apigateway-service를 사용하는 user-esrvice와 order-service 간의 통신에 대한 샘플 코드
@@ -31,6 +23,12 @@
 * user-service에서 주문을 요청하면 order-service에서 주문 데이터를 저장한 다음, 해당 주문 데이터를 Kafka Topic으로 전송
 * shipping-service에서는 Kafka Topic에 전달 된 메시지를 가지고 배송 데이터로 저장
 
+### Sharding
+* user-service의 DB를 2개의 Mariadb(shard1, shard2)로 분리하여 저장한 다음, Sharding key를 구분하여 2개의 DB에 분산되어 저장하도록 처리
+> * branch 명: sharding
+* 초기 테이블이가 shard1(또는 shard2)에만 생길 수 있기 때문에, 다른 쪽 shard에 수동으로 테이블 생성 필요
+* 전체 데이트 조회하는 API는 2개의 DB에 분산되어 저장된 데이터를 모두 가져오도록 구현되어 있지 않았기 때문에, 한쪽의 데이터만 보임
+
 ### CQRS + Event Sourcing
 * CQRS를 이용하여 Command 작업과 Query 작업을 분리하고, 데이터 상태 변경을 Event Store(DB)에 저장
 > * branch 명: cqrs1
@@ -41,22 +39,19 @@
 * order-service에서 주문 데이터를 저장한 다음, ApplicationEventPublisher를 이용한 OrderEvent를 발행
 * OrderEvent는 @EventListener로 등록 된 서비스가 Consumer로써 메시지를 소비할 수 있도록 처리
 
-### Sharding
-* user-service의 DB를 2개의 Mariadb(shard1, shard2)로 분리하여 저장한 다음, Sharding key를 구분하여 2개의 DB에 분산되어 저장하도록 처리
-> * branch 명: sharding
-* 초기 테이블이가 shard1(또는 shard2)에만 생길 수 있기 때문에, 다른 쪽 shard에 수동으로 테이블 생성 필요
-* 전체 데이트 조회하는 API는 2개의 DB에 분산되어 저장된 데이터를 모두 가져오도록 구현되어 있지 않았기 때문에, 한쪽의 데이터만 보임
-
 ### SAGA
 * 분산 트랜잭션에서 오류 발생 시 처리 작업을 이전으로 돌리기 위한(Roll back) 보상 트랜잭션 처리
+   * 구동 서비스: service-discovery(8761), apigateway-service(8000), user-service(8081), order-service(8082), shopping-service(8083), payment-service(8084)
 > * branch 명: saga1
 * user-service에서 주문을 요청하면 order-service에서 주문 데이터를 저장
 * order-service에서는 주문 데이터를 Kafka Topic으로 전송
 * payment-service에서는 Kafka Topic에 전달 된 메시지를 가지고 결제 처리 프로세스 시작, 결제 결과를 Kafka Topic으로 전송
-  * 결제가 실패 되었을 때는 Kafka Topic에 실패 메시지를 전달
+    * 결제가 실패 되었을 때는 Kafka Topic에 실패 메시지를 전달
+    * 결제 실패 조건) 결제 금액이 100,000원 초과의 경우 
 * shipping-service에서
-  * 결제가 성공 되었을 때, "배송 시작" 상태로 변경
-  * 결제가 실패 되었을 때, Kafka Topic에 실패 메시지를 전달하고 상태를 "실패"로 변경
+    * 결제가 성공 되었을 때, "배송 시작" 상태로 변경
+    * 결제가 실패 되었을 때, Kafka Topic에 실패 메시지를 전달하고 상태를 "실패"로 변경
+    * 배송 실패 조건) 재고 부족 -> 주문 수량이 5개 이상일 경우
 
 ### EDA
 * 서비스간 통신에서 API를 직접 호출하는 것이 아닌, 이벤트 발생/구독을 통해 처리하는 Event-Driven Architecture 사용
@@ -69,8 +64,8 @@
 * 서비스 간 통신에 오류가 발생하는 경우 장애 격리를 위한 작업
 > * branch 명: resilience
 * 주문정보가 포함된 사용자 상세보기 요청을 위해, user-service에서 order-service를 호출하게 되는데, order-service에 문제가 발생할 경우에 대한 장애 격리 처리
-  * retry, circuit breaker, bulk head, timeout, fallback 처리
-  * service 메소드 내에서 다른 메소드를 호출하는 경우에는 Annotation으로 선언한 resilience 작업이 실행되지 않으며, 이를 처리하기 위한 별도의 클래스를 생성하여 작업 처리하도록 구현 (user-service 프로젝트의 OrderService.java)
+    * retry, circuit breaker, bulk head, timeout, fallback 처리
+    * service 메소드 내에서 다른 메소드를 호출하는 경우에는 Annotation으로 선언한 resilience 작업이 실행되지 않으며, 이를 처리하기 위한 별도의 클래스를 생성하여 작업 처리하도록 구현 (user-service 프로젝트의 OrderService.java)
 
 ### Observability
 * 서비스 간에 발생되는 로그를 Fluend 서비스에 통합하여 처리
@@ -89,20 +84,20 @@
 * 마이크로서비스에 대한 테스트 전략
 > * branch 명: test
 * user-service API에 대한 테스트 코드
-  * UserServiceImplUnitTest
-  * UserServiceComponentTest
-  * UserServiceIntegrationTest
-  * UserServiceE2ETest
+    * UserServiceImplUnitTest
+    * UserServiceComponentTest
+    * UserServiceIntegrationTest
+    * UserServiceE2ETest
 
 ### Cache
 * 마이크로서비스에 캐시 처리 추가
 > * branch 명: cache
 * user-service에서 로그인 시 사용자 ID 정보를 Redis저장
 * order-service에서 사용자 주문목록 확인 시, 2번째 부터는 캐시에 기록된 정보를 이용하여 반환
-  * 주문 추가시 사용자 세션 삭제 로직 필요
+    * 주문 추가시 사용자 세션 삭제 로직 필요
 
 ### Deployment
 * 마이크로서비스 배포 전략
 > * branch 명: deployment
 * order-service에 대해 Blue-Green, Canary, AB Test에 대해 배포 예제
-  * docker-compose + nginx 조합으로 배포 테스트
+    * docker-compose + nginx 조합으로 배포 테스트
