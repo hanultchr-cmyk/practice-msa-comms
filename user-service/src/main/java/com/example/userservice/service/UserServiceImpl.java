@@ -97,6 +97,7 @@ public class UserServiceImpl implements UserService {
                 productId
                 qty
                 unitPrice
+                totalPrice
               }
             }
             """;
@@ -125,7 +126,8 @@ public class UserServiceImpl implements UserService {
                     (String)orderMap.get("orderId"),
                     (String)orderMap.get("productId"),
                     (Integer) orderMap.get("qty"),
-                    (Integer) orderMap.get("unitPrice"));
+                    (Integer) orderMap.get("unitPrice"),
+                    (Integer) orderMap.get("totalPrice"));
             ordersList.add(dto);
         }
 
