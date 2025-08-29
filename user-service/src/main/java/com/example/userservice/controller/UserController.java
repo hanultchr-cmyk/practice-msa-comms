@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
+import jakarta.servlet.http.HttpSession;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.convention.MatchingStrategies;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +34,6 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 @RestController
 @RequestMapping("/")
 @Tag(name = "user-controller", description = "일반 사용자 서비스를 위한 컨트롤러입니다.")
-@Slf4j
 public class UserController {
     private Environment env;
     private UserService userService;
@@ -46,13 +45,6 @@ public class UserController {
     public UserController(Environment env, UserService userService) {
         this.env = env;
         this.userService = userService;
-    }
-
-    @GetMapping("/check-ip")
-    public ResponseEntity<String> checkIp(HttpServletRequest request) {
-        String remoteAddr = request.getRemoteAddr();
-        log.info("Remote IP: {}", remoteAddr);
-        return ResponseEntity.ok(remoteAddr);
     }
 
     @Operation(summary = "Health check API", description = "Health check를 위한 API (포트 및 Token Secret 정보 확인 가능)")
@@ -67,6 +59,13 @@ public class UserController {
                 + ", message=" + env.getProperty("greeting.message")
                 + ", token secret=" + greeting.getSecret()
                 + ", token expiration time=" + env.getProperty("token.expiration_time"));
+    }
+
+    @GetMapping("/profile")
+    public String userProfile(HttpSession session) {
+        String userId = (String) session.getAttribute("USER_ID");
+        // userId로 사용자 프로필 조회 처리
+        return "session user_id=" + userId;
     }
 
     @Operation(summary = "환영 메시지 출력 API", description = "Welcome message를 출력하기 위한 API")
