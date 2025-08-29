@@ -6,8 +6,6 @@ import com.example.userservice.service.UserService;
 import com.example.userservice.vo.Greeting;
 import com.example.userservice.vo.RequestUser;
 import com.example.userservice.vo.ResponseUser;
-import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Bucket;
 import io.micrometer.core.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -27,8 +25,6 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,15 +42,10 @@ public class UserController {
     @Autowired
     private Greeting greeting;
 
-    private final Bucket bucket;
-
     @Autowired
     public UserController(Environment env, UserService userService) {
         this.env = env;
         this.userService = userService;
-
-        Bandwidth limit = Bandwidth.simple(5, Duration.ofSeconds(10));
-        this.bucket = Bucket.builder().addLimit(limit).build();
     }
 
     @GetMapping("/check-ip")
@@ -67,30 +58,25 @@ public class UserController {
     @Operation(summary = "Health check API", description = "Health check를 위한 API (포트 및 Token Secret 정보 확인 가능)")
     @GetMapping("/health-check")
     @Timed(value="users.status", longTask = true)
-    public ResponseEntity<?> status() {
-        if (bucket.tryConsume(1)) {
-            // 정상 처리 로직
-            String msg = String.format("It's Working in User Service"
-                    + ", port(local.server.port)=" + env.getProperty("local.server.port")
-                    + ", port(server.port)=" + env.getProperty("server.port")
-                    + ", gateway ip(env)=" + env.getProperty("gateway.ip")
-                    + ", gateway ip(value)=" + greeting.getIp()
-                    + ", message=" + env.getProperty("greeting.message")
-                    + ", token secret=" + greeting.getSecret()
-                    + ", token expiration time=" + env.getProperty("token.expiration_time"));
-            return ResponseEntity.ok(msg);
-        } else {
-            // 호출 제한 초과
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body("Health check request limit exceeded. Try again in 10 seconds.");
-        }
+    public String status() {
+        return String.format("It's Working in User Service"
+                + ", port(local.server.port)=" + env.getProperty("local.server.port")
+                + ", port(server.port)=" + env.getProperty("server.port")
+                + ", gateway ip(env)=" + env.getProperty("gateway.ip")
+                + ", gateway ip(value)=" + greeting.getIp()
+                + ", message=" + env.getProperty("greeting.message")
+                + ", token secret=" + greeting.getSecret()
+                + ", token expiration time=" + env.getProperty("token.expiration_time"));
     }
 
     @Operation(summary = "환영 메시지 출력 API", description = "Welcome message를 출력하기 위한 API")
     @GetMapping("/welcome")
     @Timed(value="users.welcome", longTask = true)
     public String welcome(HttpServletRequest request, HttpServletResponse response) {
-        log.info("users.welcome ip: {}, {}, {}, {}", request.getRemoteAddr(), request.getRemoteHost(), request.getRequestURI(), request.getRequestURL());
+        System.out.println("users.welcome ip:" + request.getRemoteAddr() +
+                "," + request.getRemoteHost() +
+                "," + request.getRequestURI() +
+                "," + request.getRequestURL());
         return greeting.getMessage();
     }
 
@@ -145,7 +131,6 @@ public class UserController {
     )
     @GetMapping("/users/{userId}")
     public ResponseEntity getUser(@PathVariable("userId") String userId) {
-        log.info("Called getUser method: {}", userId);
         UserDto userDto = userService.getUserByUserId(userId);
 
         if (userDto == null) {

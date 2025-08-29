@@ -3,11 +3,9 @@ package com.example.userservice.service;
 import com.example.userservice.dto.UserDto;
 import com.example.userservice.jpa.UserEntity;
 import com.example.userservice.jpa.UserRepository;
+import com.example.userservice.config.RoutingDataSource;
+import com.example.userservice.utils.ShardingKeyUtil;
 import com.example.userservice.vo.ResponseOrder;
-import io.github.resilience4j.bulkhead.annotation.Bulkhead;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.retry.annotation.Retry;
-import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.convention.MatchingStrategies;
@@ -28,8 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 @Service
 @Slf4j
@@ -38,7 +34,7 @@ public class UserServiceImpl implements UserService {
     BCryptPasswordEncoder passwordEncoder;
 
     Environment env;
-    OrderService orderService;
+    RestTemplate restTemplate;
 
     CircuitBreakerFactory circuitBreakerFactory;
 
@@ -58,12 +54,12 @@ public class UserServiceImpl implements UserService {
     public UserServiceImpl(UserRepository userRepository,
                            BCryptPasswordEncoder passwordEncoder,
                            Environment env,
-                           OrderService orderService,
+                           RestTemplate restTemplate,
                            CircuitBreakerFactory circuitBreakerFactory) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.env = env;
-        this.orderService = orderService;
+        this.restTemplate = restTemplate;
         this.circuitBreakerFactory = circuitBreakerFactory;
     }
 
@@ -76,6 +72,8 @@ public class UserServiceImpl implements UserService {
         UserEntity userEntity = mapper.map(userDto, UserEntity.class);
         userEntity.setEncryptedPwd(passwordEncoder.encode(userDto.getPwd()));
 
+        setShardKeyByUserId(userDto.getUserId());
+
         userRepository.save(userEntity);
 
         UserDto returnUserDto = mapper.map(userEntity, UserDto.class);
@@ -85,21 +83,32 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserDto getUserByUserId(String userId) {
-        log.info("Retrieve an user's details {}", userId);
-        Optional<UserEntity> userEntity = userRepository.findByUserId(userId);
+        UserEntity userEntity;
+        try {
+            setShardKeyByUserId(userId);
+            userEntity = userRepository.findByUserId(userId).orElse(null);
+        } finally {
+            RoutingDataSource.clear(); // context cleanup
+        }
 
         if (userEntity == null)
             throw new UsernameNotFoundException("User not found");
 
+        log.info("Before call orders microservice");
+        List<ResponseOrder> ordersList = new ArrayList<>();
+        String orderUrl = String.format("http://127.0.0.1:8082/%s/orders", userId);
+        ResponseEntity<List<ResponseOrder>> orderListResponse =
+                restTemplate.exchange(orderUrl, HttpMethod.GET, null,
+                                            new ParameterizedTypeReference<List<ResponseOrder>>() {
+                });
+        ordersList = orderListResponse.getBody();
+
         ModelMapper mapper = new ModelMapper();
         mapper.getConfiguration().setMatchingStrategy(MatchingStrategies.STRICT);
-        UserDto userDto = mapper.map(userEntity.get(), UserDto.class);
+        UserDto userDto = mapper.map(userEntity, UserDto.class);
+        userDto.setOrders(ordersList);
 
-        try {
-            userDto.setOrders(orderService.getOrderListByUserId(userId).get());
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
-        }
+        log.info("After called orders microservice using restful api");
 
         return userDto;
     }
@@ -120,5 +129,10 @@ public class UserServiceImpl implements UserService {
 
         UserDto userDto = mapper.map(optionalUserEntity.get(), UserDto.class);
         return userDto;
+    }
+
+    private void setShardKeyByUserId(String userId) {
+        int shardKey = ShardingKeyUtil.uuidToShardKey(userId, 2);
+        RoutingDataSource.setShardKey(shardKey);
     }
 }
