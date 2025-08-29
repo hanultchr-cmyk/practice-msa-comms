@@ -1,0 +1,68 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    # Redis는 다른 서비스에 선행하여 기동
+    command: redis-server --appendonly yes
+    networks:
+      my-network:
+  mariadb:
+    image: mariadb:latest
+    container_name: mariadb
+    restart: always
+    ports:
+      - "3307:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: test1357
+      MARIADB_USER: example-user
+      MARIADB_PASSWORD: test1357
+      MARIADB_DATABASE: mydb
+    networks:
+      my-network:
+
+#  user-service:
+#    build: ./user-service  # Dockerfile이 있는 경로 (user-service 디렉토리)
+#    container_name: user-service
+#    ports:
+#      - "8081:8080"       # 호스트포트:컨테이너포트
+#    depends_on:
+#      - redis
+  order-service-blue:
+    image: order-service:v1
+    ports:
+      - "18082:8082"
+    depends_on:
+      - redis
+    networks:
+      my-network:
+  order-service-green:
+    image: order-service:v2
+    ports:
+      - "28082:8082"
+    depends_on:
+      - redis
+    networks:
+      my-network:
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+#      - ./nginx-blue.conf:/etc/nginx/nginx.conf
+#      - ./nginx-green.conf:/etc/nginx/nginx.conf
+#      - ./nginx-weight.conf:/etc/nginx/nginx.conf
+      - ./nginx-abtest.conf:/etc/nginx/nginx.conf
+
+    depends_on:
+      - order-service-blue
+      - order-service-green
+    networks:
+      my-network:
+networks:
+  my-network:
+    external: true
+    name: ecommerce-network
