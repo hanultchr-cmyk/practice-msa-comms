@@ -1,21 +1,17 @@
 package com.example.userservice.controller;
 
-import com.example.orderservice.grpc.OrderRequest;
-import com.example.orderservice.grpc.OrderResponse;
-import com.example.orderservice.grpc.OrderServiceGrpc;
 import com.example.userservice.dto.UserDto;
 import com.example.userservice.jpa.UserEntity;
 import com.example.userservice.service.UserService;
 import com.example.userservice.vo.Greeting;
 import com.example.userservice.vo.RequestUser;
-import com.example.userservice.vo.ResponseOrder;
 import com.example.userservice.vo.ResponseUser;
 import io.micrometer.core.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import net.devh.boot.grpc.client.inject.GrpcClient;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.convention.MatchingStrategies;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +34,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 @RestController
 @RequestMapping("/")
 @Tag(name = "user-controller", description = "일반 사용자 서비스를 위한 컨트롤러입니다.")
+@Slf4j
 public class UserController {
     private Environment env;
     private UserService userService;
@@ -45,13 +42,17 @@ public class UserController {
     @Autowired
     private Greeting greeting;
 
-    @GrpcClient("order-service")
-    private OrderServiceGrpc.OrderServiceBlockingStub orderStub;
-
     @Autowired
     public UserController(Environment env, UserService userService) {
         this.env = env;
         this.userService = userService;
+    }
+
+    @GetMapping("/check-ip")
+    public ResponseEntity<String> checkIp(HttpServletRequest request) {
+        String remoteAddr = request.getRemoteAddr();
+        log.info("Remote IP: {}", remoteAddr);
+        return ResponseEntity.ok(remoteAddr);
     }
 
     @Operation(summary = "Health check API", description = "Health check를 위한 API (포트 및 Token Secret 정보 확인 가능)")
