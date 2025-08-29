@@ -5,6 +5,8 @@ import com.example.orderservice.jpa.OrderEntity;
 import com.example.orderservice.service.OrderService;
 import com.example.orderservice.vo.RequestOrder;
 import com.example.orderservice.vo.ResponseOrder;
+import com.example.saga.OrderCreatedEvent;
+import com.example.saga.OrderCreatedV1Event;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.convention.MatchingStrategies;
@@ -34,7 +36,7 @@ public class OrderController {
 
     @GetMapping("/health-check")
     public String status() {
-        return String.format("It's Working in Order Service V2 on LOCAL PORT %s (SERVER PORT %s)",
+        return String.format("It's Working in Order Service on LOCAL PORT %s (SERVER PORT %s)",
                 env.getProperty("local.server.port"),
                 env.getProperty("server.port"));
     }
@@ -52,7 +54,7 @@ public class OrderController {
         orderDto.setTotalPrice(orderDetails.getQty() * orderDetails.getUnitPrice());
 
         /* jpa */
-        OrderDto createdOrder = orderService.createOrder(orderDto);
+        OrderCreatedV1Event createdOrder = orderService.createOrder(orderDto);
         ResponseOrder responseOrder = mapper.map(createdOrder, ResponseOrder.class);
 
         log.info("After added orders data");
@@ -69,7 +71,7 @@ public class OrderController {
             result.add(new ModelMapper().map(v, ResponseOrder.class));
         });
 
-        log.info("Add retrieved orders data");
+        log.info("After retrieved orders data");
 
         return ResponseEntity.status(HttpStatus.OK).body(result);
     }
